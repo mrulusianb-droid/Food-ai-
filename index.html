@@ -1,92 +1,44 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Шеф-повар</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; background: #f4f4f9; padding: 20px; }
-        #video { width: 100%; max-width: 400px; border-radius: 15px; background: #000; }
-        #canvas { display: none; }
-        .controls { margin-top: 20px; }
-        button { padding: 15px 25px; font-size: 16px; border-radius: 50px; border: none; background: #28a745; color: white; cursor: pointer; }
-        #recipe-output { margin-top: 30px; text-align: left; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; }
-        .loader { display: none; color: #555; }
-    </style>
-</head>
-<body>
+const API_KEY = "AIzaSyDIbTGx3oL2bvAguxUGRBW-qTN3z3ZWIBY"; // Вставьте сюда полученный ключ
 
-    <h1>📸 AI Рецепты</h1>
-    <p>Наведи камеру на продукты в холодильнике</p>
+async function getRecipeFromAI(base64Image) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
+    // Подготовка данных для нейросети
+    const requestBody = {
+        contents: [{
+            parts: [
+                { text: "Посмотри на это фото продуктов из холодильника. Перечисли, что ты видишь, и предложи 1 конкретный рецепт блюда, которое можно из этого приготовить. Отвечай на русском языке." },
+                {
+                    inline_data: {
+                        mime_type: "image/jpeg",
+                        data: base64Image.split(',')[1] // Убираем технический заголовок base64
+                    }
+                }
+            ]
+        }]
+    };
 
-    <div class="controls">
-        <button id="capture">Узнать рецепт!</button>
-    </div>
-
-    <div class="loader" id="loader">Нейросеть изучает продукты... 🍳</div>
-
-    <div id="recipe-output">
-        <h2 id="recipe-title"></h2>
-        <div id="recipe-content"></div>
-    </div>
-
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const captureBtn = document.getElementById('capture');
-        const recipeOutput = document.getElementById('recipe-output');
-        const loader = document.getElementById('loader');
-
-        // Включаем камеру
-        async function initCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                video.srcObject = stream;
-            } catch (err) {
-                alert("Ошибка доступа к камере: " + err);
-            }
-        }
-
-        captureBtn.addEventListener('click', async () => {
-            // Рисуем кадр на скрытый холст
-            const context = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            // Получаем base64 изображения
-            const imageData = canvas.toDataURL('image/jpeg');
-
-            // Показываем загрузку
-            loader.style.display = 'block';
-            recipeOutput.style.display = 'none';
-
-            // Здесь должен быть вызов вашего API
-            // Для примера имитируем запрос к AI
-            getRecipeFromAI(imageData);
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
         });
 
-        async function getRecipeFromAI(image) {
-            /* ЛОГИКА: 
-               1. Отправляем image на сервер или напрямую в Gemini API / OpenAI API.
-               2. Промпт: "Посмотри на это фото еды и предложи 1 быстрый рецепт".
-            */
-            
-            setTimeout(() => { // Имитация задержки сети
-                loader.style.display = 'none';
-                recipeOutput.style.display = 'block';
-                document.getElementById('recipe-title').innerText = "Омлет с овощами";
-                document.getElementById('recipe-content').innerHTML = `
-                    <p><strong>Продукты на фото:</strong> Яйца, перец, зелень.</p>
-                    <p><strong>Инструкция:</strong> Взбейте яйца, нарежьте перец кубиками и обжарьте 3 минуты...</p>
-                `;
-            }, 2000);
-        }
+        const data = await response.json();
+        
+        // Извлекаем текст ответа от ИИ
+        const aiText = data.candidates[0].content.parts[0].text;
 
-        initCamera();
-    </script>
-</body>
-</html>
+        // Выводим результат на экран
+        loader.style.display = 'none';
+        recipeOutput.style.display = 'block';
+        document.getElementById('recipe-title').innerText = "Предложение от ИИ:";
+        document.getElementById('recipe-content').innerHTML = aiText.replace(/\n/g, '<br>');
+
+    } catch (error) {
+        console.error("Ошибка API:", error);
+        alert("Не удалось связаться с ИИ. Проверьте ключ или интернет.");
+        loader.style.display = 'none';
+    }
+}
