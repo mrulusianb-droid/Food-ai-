@@ -1,44 +1,115 @@
-const API_KEY = "AIzaSyDIbTGx3oL2bvAguxUGRBW-qTN3z3ZWIBY"; // Вставьте сюда полученный ключ
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Холодильник</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; text-align: center; background: #f0f2f5; margin: 0; padding: 20px; }
+        #video { width: 100%; max-width: 500px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); background: #000; }
+        #canvas { display: none; }
+        .controls { margin: 20px 0; }
+        button { 
+            padding: 18px 30px; font-size: 18px; font-weight: bold;
+            border-radius: 30px; border: none; background: #007AFF; 
+            color: white; cursor: pointer; transition: 0.3s;
+        }
+        button:active { transform: scale(0.95); background: #0056b3; }
+        #loader { display: none; margin: 20px; color: #555; font-style: italic; }
+        #recipe-output { 
+            margin-top: 20px; text-align: left; background: white; 
+            padding: 20px; border-radius: 15px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
 
-async function getRecipeFromAI(base64Image) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    <h2>📸 AI Шеф-повар</h2>
+    
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
 
-    // Подготовка данных для нейросети
-    const requestBody = {
-        contents: [{
-            parts: [
-                { text: "Посмотри на это фото продуктов из холодильника. Перечисли, что ты видишь, и предложи 1 конкретный рецепт блюда, которое можно из этого приготовить. Отвечай на русском языке." },
-                {
-                    inline_data: {
-                        mime_type: "image/jpeg",
-                        data: base64Image.split(',')[1] // Убираем технический заголовок base64
-                    }
-                }
-            ]
-        }]
-    };
+    <div class="controls">
+        <button id="capture">Сделать фото и найти рецепт</button>
+    </div>
 
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
+    <div id="loader">Нейросеть изучает продукты... ✨</div>
+
+    <div id="recipe-output">
+        <div id="recipe-content"></div>
+    </div>
+
+    <script>
+        const API_KEY = "AIzaSyDIbTGx3oL2bvAguxUGRBW-qTN3z3ZWIBY";
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('capture');
+        const recipeOutput = document.getElementById('recipe-output');
+        const loader = document.getElementById('loader');
+        const recipeContent = document.getElementById('recipe-content');
+
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("Ошибка камеры: " + err);
+            }
+        }
+
+        captureBtn.addEventListener('click', async () => {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = canvas.toDataURL('image/jpeg');
+            
+            loader.style.display = 'block';
+            recipeOutput.style.display = 'none';
+            captureBtn.disabled = true;
+
+            await getRecipeFromAI(imageData);
         });
 
-        const data = await response.json();
-        
-        // Извлекаем текст ответа от ИИ
-        const aiText = data.candidates[0].content.parts[0].text;
+        async function getRecipeFromAI(base64Image) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-        // Выводим результат на экран
-        loader.style.display = 'none';
-        recipeOutput.style.display = 'block';
-        document.getElementById('recipe-title').innerText = "Предложение от ИИ:";
-        document.getElementById('recipe-content').innerHTML = aiText.replace(/\n/g, '<br>');
+            const requestBody = {
+                contents: [{
+                    parts: [
+                        { text: "Напиши на русском языке: какие продукты на фото и что из них приготовить (1 рецепт)." },
+                        { inline_data: { mime_type: "image/jpeg", data: base64Image.split(',')[1] } }
+                    ]
+                }]
+            };
 
-    } catch (error) {
-        console.error("Ошибка API:", error);
-        alert("Не удалось связаться с ИИ. Проверьте ключ или интернет.");
-        loader.style.display = 'none';
-    }
-}
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+                const aiText = data.candidates[0].content.parts[0].text;
+
+                loader.style.display = 'none';
+                recipeOutput.style.display = 'block';
+                captureBtn.disabled = false;
+                recipeContent.innerHTML = aiText.replace(/\n/g, '<br>');
+            } catch (error) {
+                alert("Ошибка API. Проверьте интернет или ключ.");
+                loader.style.display = 'none';
+                captureBtn.disabled = false;
+            }
+        }
+
+        initCamera();
+    </script>
+</body>
+</html>
